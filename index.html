@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#101b20">
+  <title>Interactive Birthday Gift</title>
+  <style>
+    /* THEME: change these colors to make the design your own. */
+    :root {
+      --background: #101b20;
+      --pink: #d91463;
+      --ink: #fff5e9;
+      --lime: #b7ff69;
+      --muted: #a5b4b7;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: var(--background); color: var(--ink); font-family: Arial, sans-serif; }
+    button, input, textarea { font: inherit; }
+    button { cursor: pointer; touch-action: manipulation; }
+    button:focus-visible, summary:focus-visible { outline: 3px solid var(--lime); outline-offset: 5px; }
+    [hidden] { display: none !important; }
+    .app { width: min(960px, calc(100% - 36px)); margin: 0 auto; padding: 38px 0 24px; }
+    .topline { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 34px; }
+    .brand { font-size: 12px; font-weight: bold; letter-spacing: 2px; }
+    .brand span { color: var(--lime); }
+    .sound { padding: 9px 13px; color: #dae7e8; border: 1px solid #ffffff26; border-radius: 30px; background: none; font-size: 11px; }
+    .sound[aria-pressed="true"] { color: var(--lime); border-color: #b7ff6960; }
+    .heading { text-align: center; margin-bottom: 29px; }
+    .heading h1 { font-size: clamp(25px, 4.3vw, 43px); letter-spacing: -1.4px; margin: 0 0 12px; }
+    .heading h1 span { color: var(--lime); }
+    .heading p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+
+    /* The dark letterbox and pink birthday animation from the reference. */
+    .stage { position: relative; isolation: isolate; min-height: 450px; aspect-ratio: 16 / 9; border: 1px solid #fff7e5b0; border-radius: 7px; background: #10050d; overflow: hidden; box-shadow: 0 24px 80px #0005; }
+    .pink-panel { position: absolute; inset: 9% 0; overflow: hidden; display: grid; align-content: center; justify-items: center; background: linear-gradient(115deg, #ee5d93, #dc165c 43%, #cf125d 80%, #e22d73); }
+    .pink-panel::before { content: ""; position: absolute; inset: -30%; background: radial-gradient(ellipse at var(--mx, 18%) var(--my, 20%), #ffa8c473, transparent 37%); pointer-events: none; }
+    .pink-panel::after { content: ""; position: absolute; inset: 0; opacity: .045; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%23000' filter='url(%23n)' d='M0 0h160v160H0z'/%3E%3C/svg%3E"); }
+    .make-wish { z-index: 2; margin: 0 0 15px; font-family: Georgia, serif; font-size: clamp(10px, 1.4vw, 13px); font-style: italic; letter-spacing: 1px; color: #ffe1e3; opacity: 0; }
+    .greeting { position: relative; z-index: 2; margin: 0; text-align: center; color: var(--ink); font-family: Georgia, 'Times New Roman', serif; font-weight: bold; font-size: clamp(58px, 10.5vw, 114px); line-height: .93; letter-spacing: -5px; text-shadow: 3px 4px 0 #71204735; }
+    .line { display: block; overflow: hidden; padding: 3px 16px 11px; margin-bottom: -5px; }
+    .word { display: block; transform: translateY(125%) rotate(4deg); transform-origin: left bottom; }
+    .recipient { z-index: 2; max-width: 90%; margin-top: 15px; font: italic clamp(20px, 3.2vw, 32px) Georgia, serif; text-align: center; overflow-wrap: anywhere; opacity: 0; transform: translateY(12px); }
+    .bar { position: absolute; left: -20%; right: -20%; height: 22%; z-index: 3; background: #e02b70; transform: translateX(-110%) skewX(-16deg); pointer-events: none; }
+    .bar-one { top: 29%; background: linear-gradient(90deg, #f77cac, #e22a70); }
+    .bar-two { top: 51%; background: linear-gradient(90deg, #ed447f, #c51058); }
+    .spark { position: absolute; color: #ffe6cc; z-index: 1; font-family: Georgia, serif; opacity: .8; }
+    .spark-one { left: 12%; top: 18%; font-size: 46px; }
+    .spark-two { right: 12%; bottom: 17%; font-size: 34px; }
+    .spark-three { right: 20%; top: 16%; font-size: 15px; }
+    .wish { position: absolute; left: 55%; bottom: 10%; z-index: 6; pointer-events: none; color: var(--ink); font-size: 25px; opacity: 0; transform: translate(-50%, -50%) scale(.6); transition: opacity .2s, transform .2s; }
+    .wish.is-in { opacity: .85; transform: translate(-50%, -50%) scale(1); }
+    .stage-label { position: absolute; left: 18px; bottom: 3%; font-size: 8px; letter-spacing: 2px; color: #d19caf; }
+    .stage-heart { position: absolute; right: 18px; bottom: 2.5%; color: #ed84ad; font-size: 17px; }
+    .stage.is-in .word { animation: text-in 1.2s cubic-bezier(.16, 1, .3, 1) forwards; }
+    .stage.is-in .line:nth-child(1) .word { animation-delay: .2s; }
+    .stage.is-in .line:nth-child(2) .word { animation-delay: .6s; }
+    .stage.is-in .bar-one { animation: bar-sweep 1.3s cubic-bezier(.7, 0, .2, 1) .1s both; }
+    .stage.is-in .bar-two { animation: bar-sweep 1.3s cubic-bezier(.7, 0, .2, 1) .5s both; }
+    .stage.is-in .make-wish { animation: fade-in 1s .2s forwards; }
+    .stage.is-in .recipient { animation: fade-in 1s 1.3s forwards; }
+    .stage.is-in .spark { animation: sparkle 3s ease-in-out infinite alternate; }
+    .controls { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin: 23px 0 16px; }
+    .button { padding: 13px 19px; min-height: 44px; border: 1px solid #ffffff30; border-radius: 7px; background: #ffffff07; color: var(--ink); font-size: 12px; transition: transform .2s, background .2s; }
+    .button:hover { transform: translateY(-2px); background: #ffffff12; }
+    .button.primary { background: var(--lime); border-color: var(--lime); color: #17300b; font-weight: bold; }
+    .button.primary:hover { background: #ceff9d; }
+    .hint { text-align: center; color: var(--muted); font-size: 10px; line-height: 1.7; }
+    .customize { max-width: 620px; margin: 29px auto 0; border: 1px solid #ffffff1c; border-radius: 8px; background: #ffffff03; }
+    summary { cursor: pointer; padding: 17px 20px; font-size: 12px; color: #d3e2e2; }
+    .customize form { padding: 0 20px 20px; }
+    .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+    label { display: block; margin: 0 0 7px; font-size: 11px; color: #b2c6c8; }
+    input, textarea { display: block; width: 100%; border: 1px solid #ffffff25; border-radius: 6px; background: #091519; color: var(--ink); padding: 11px; font-size: 12px; line-height: 1.6; }
+    input:focus, textarea:focus { outline: 2px solid #b7ff6980; outline-offset: 2px; }
+    textarea { resize: vertical; margin-bottom: 14px; min-height: 116px; }
+    .message-label { margin-top: 16px; }
+    .form-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .form-help { font-size: 10px; color: #9ab0b2; line-height: 1.8; margin: 14px 0 0; }
+    footer { margin-top: 28px; text-align: center; color: #7e9598; font-size: 9px; letter-spacing: .5px; }
+    dialog { color-scheme: light; border: 0; border-radius: 12px; padding: 37px; background: #fff3e4; color: #642244; max-width: 480px; width: calc(100% - 32px); max-height: 86dvh; overflow-y: auto; box-shadow: 0 30px 100px #0007; }
+    dialog::backdrop { background: #080d13cc; backdrop-filter: blur(7px); }
+    .close { position: absolute; right: 12px; top: 12px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: #d9146310; color: #8a2e54; font-size: 23px; }
+    .letter-flower { color: #d91463; font-size: 44px; line-height: 1; text-align: center; }
+    .letter-kicker { text-align: center; font-size: 8px; letter-spacing: 2px; margin: 15px 0 29px; color: #9c647e; }
+    .letter-title { font: normal 34px Georgia, serif; letter-spacing: -1px; margin: 0 0 20px; overflow-wrap: anywhere; }
+    .letter-message { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.9; font-size: 13px; color: #895770; }
+    .letter-signoff { font: italic 19px Georgia, serif; margin: 26px 0 8px; }
+    .letter-sender { font-size: 12px; color: #895770; overflow-wrap: anywhere; }
+    .letter-footer { margin-top: 24px; border-top: 1px solid #d9146320; padding-top: 17px; font-size: 9px; color: #b0758d; }
+    .toast { position: fixed; bottom: 20px; left: 50%; transform: translate(-50%, 15px); background: var(--lime); color: #17300b; padding: 13px 20px; border-radius: 7px; font-size: 12px; z-index: 40; max-width: calc(100% - 30px); text-align: center; opacity: 0; pointer-events: none; transition: .2s; }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    #confetti { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 30; pointer-events: none; }
+    noscript p { background: #fff3e4; color: #642244; padding: 18px; text-align: center; }
+    @keyframes text-in { to { transform: translateY(0) rotate(0); } }
+    @keyframes bar-sweep { 0% { transform: translateX(-110%) skewX(-16deg); } 45%, 55% { transform: translateX(0) skewX(-16deg); } 100% { transform: translateX(110%) skewX(-16deg); } }
+    @keyframes fade-in { to { opacity: 1; transform: translateY(0); } }
+    @keyframes sparkle { to { opacity: .3; transform: scale(.82) rotate(15deg); } }
+    @media (max-width: 600px) {
+      .app { width: calc(100% - 28px); padding-top: 23px; }
+      .topline { margin-bottom: 31px; }
+      .brand { font-size: 10px; letter-spacing: 1.6px; }
+      .heading h1 { font-size: clamp(23px, 6.6vw, 36px); letter-spacing: -.9px; }
+      .heading p { font-size: 10px; }
+      .stage { aspect-ratio: 1.16; min-height: 285px; }
+      .pink-panel { inset: 10% 0; }
+      .greeting { font-size: clamp(54px, 14vw, 80px); letter-spacing: -3px; }
+      .recipient { font-size: 22px; margin-top: 11px; }
+      .make-wish { font-size: 10px; margin-bottom: 13px; }
+      .spark-one { left: 7%; top: 15%; font-size: 30px; }
+      .spark-two { right: 6%; bottom: 14%; font-size: 25px; }
+      .spark-three { right: 15%; top: 12%; font-size: 12px; }
+      .controls { gap: 8px; }
+      .button { font-size: 11px; padding: 12px 14px; }
+      .stage-label { font-size: 6px; letter-spacing: 1.2px; }
+      .stage-heart { font-size: 14px; }
+      .fields { grid-template-columns: 1fr; }
+      dialog { padding: 31px 25px; }
+      .letter-title { font-size: 30px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+      .word { transform: none; }
+      .make-wish, .recipient { opacity: 1; transform: none; }
+      .bar { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topline"><span class="brand">LITTLE <span>WISHES ✦</span></span><button class="sound" id="sound-button" type="button" aria-pressed="false">♪ Sound off</button></header>
+    <div class="heading"><h1>Interactive <span>Birthday Gift</span></h1><p>A little surprise. A whole lot of love.</p></div>
+
+    <section class="stage" id="stage" aria-label="Animated birthday card">
+      <div class="pink-panel" id="pink-panel">
+        <p class="make-wish">make a wish...</p>
+        <h2 class="greeting"><span class="line"><span class="word">Happy</span></span><span class="line"><span class="word">Birthday</span></span></h2>
+        <span class="recipient" id="recipient">Friend ♡</span>
+        <span class="bar bar-one" aria-hidden="true"></span><span class="bar bar-two" aria-hidden="true"></span>
+        <span class="spark spark-one" aria-hidden="true">✧</span><span class="spark spark-two" aria-hidden="true">✧</span><span class="spark spark-three" aria-hidden="true">✦</span>
+        <span class="wish" id="wish" aria-hidden="true">✦</span>
+      </div>
+      <span class="stage-label">A SPECIAL DAY. A SPECIAL YOU.</span><span class="stage-heart" aria-hidden="true">♡</span>
+    </section>
+
+    <div class="controls"><button class="button primary" id="gift-button" type="button">Open my gift ↗</button><button class="button" id="replay-button" type="button">↻ Replay</button><button class="button" id="confetti-button" type="button">More confetti ✦</button></div>
+    <p class="hint">A birthday wish is waiting inside. Open your gift to find it.</p>
+
+    <details class="customize" id="customize"><summary>Make it personal — change the name and message</summary>
+      <form id="settings-form">
+        <div class="fields"><div><label for="name-input">Birthday person's name</label><input id="name-input" maxlength="32" required autocomplete="off"></div><div><label for="from-input">From</label><input id="from-input" maxlength="60" required autocomplete="off"></div></div>
+        <label class="message-label" for="message-input">Your birthday message</label><textarea id="message-input" maxlength="1600" rows="5" required></textarea>
+        <div class="form-actions"><button class="button primary" type="submit">Apply changes</button><button class="button" id="download-button" type="button">Download personalized HTML ↓</button></div>
+        <p class="form-help">Apply saves your changes in this browser. Download creates a complete HTML file with your message inside, ready to send and open offline.</p>
+      </form>
+    </details>
+    <footer>HTML + CSS + JavaScript · No installation · Made with a little birthday magic ♡</footer>
+  </main>
+
+  <dialog id="gift-dialog" aria-labelledby="letter-title">
+    <button class="close" id="close-button" type="button" aria-label="Close birthday note">×</button>
+    <div class="letter-flower" aria-hidden="true">✳</div><p class="letter-kicker">A LITTLE NOTE, JUST FOR YOU</p>
+    <h2 class="letter-title" id="letter-title">Dear Friend,</h2><div class="letter-message" id="letter-message"></div>
+    <p class="letter-signoff">With a whole lot of love,</p><div class="letter-sender" id="letter-sender"></div><div class="letter-footer">May the good things find you, today and always. ♡</div>
+  </dialog>
+  <canvas id="confetti" aria-hidden="true"></canvas><div class="toast" id="toast" role="status"></div>
+  <noscript><p>Enable JavaScript to play the animation, open the birthday note, and personalize the gift.</p></noscript>
+
+  <!-- EDIT HERE: replace the name, sender and message below. Keep the JSON valid. -->
+  <script id="card-data" type="application/json">
+  {
+    "name": "Friend",
+    "from": "Someone who is cheering for you",
+    "message": "Happy Birthday! 🎂\n\nMay your day be filled with the people you love, the little things that make you smile, and a whole lot of happiness.\n\nHere’s to new adventures, big dreams, and another beautiful year of being you.\n\nMake a wish. You deserve wonderful things. ♡"
+  }
+  </script>
+  <script>
+    'use strict';
+    (() => {
+      const $ = id => document.getElementById(id);
+      const stage = $('stage'), panel = $('pink-panel'), dialog = $('gift-dialog');
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      const original = JSON.parse($('card-data').textContent);
+      const storageKey = 'birthday-gift:' + JSON.stringify(original);
+      let settings = { ...original }, toastTimer, revealFrame;
+      let audio, soundOn = false;
+      const oscillators = new Set();
+
+      // Restore only this card's browser-saved personalization.
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey));
+        if (saved && ['name', 'from', 'message'].every(k => typeof saved[k] === 'string' && saved[k].trim())) {
+          settings = { name: saved.name.slice(0, 32), from: saved.from.slice(0, 60), message: saved.message.slice(0, 1600) };
+        }
+      } catch (_) { /* The card also works when local storage is unavailable. */ }
+
+      function render() {
+        // textContent keeps personal messages as text, including < or > symbols.
+        $('recipient').textContent = settings.name + ' ♡';
+        $('letter-title').textContent = 'Dear ' + settings.name + ',';
+        $('letter-message').textContent = settings.message;
+        $('letter-sender').textContent = settings.from;
+        $('name-input').value = settings.name;
+        $('from-input').value = settings.from;
+        $('message-input').value = settings.message;
+        document.title = 'Happy Birthday, ' + settings.name + '!';
+      }
+
+      function toast(text) {
+        clearTimeout(toastTimer);
+        $('toast').textContent = text; $('toast').classList.add('show');
+        toastTimer = setTimeout(() => $('toast').classList.remove('show'), 3200);
+      }
+
+      function replay() {
+        cancelAnimationFrame(revealFrame);
+        stage.classList.remove('is-in');
+        void stage.offsetWidth; // Restart the CSS animation after Replay.
+        revealFrame = requestAnimationFrame(() => stage.classList.add('is-in'));
+      }
+
+      function readForm() {
+        const name = $('name-input').value.trim(), from = $('from-input').value.trim(), message = $('message-input').value.trim();
+        if (!name || !from || !message) { toast('Please add a name, sender, and birthday message.'); return false; }
+        settings = { name: name.slice(0, 32), from: from.slice(0, 60), message: message.slice(0, 1600) };
+        render(); return true;
+      }
+
+      $('settings-form').addEventListener('submit', event => {
+        event.preventDefault(); if (!readForm()) return;
+        let saved = true;
+        try { localStorage.setItem(storageKey, JSON.stringify(settings)); } catch (_) { saved = false; }
+        replay(); toast(saved ? 'Your birthday gift is personalized!' : 'Updated for this visit. Download the HTML to keep it.');
+      });
+      $('replay-button').addEventListener('click', replay);
+      $('gift-button').addEventListener('click', () => { dialog.showModal(); celebrate(); chime(); });
+      $('close-button').addEventListener('click', () => dialog.close());
+      dialog.addEventListener('click', event => {
+        if (event.target !== dialog) return;
+        const r = dialog.getBoundingClientRect();
+        if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) dialog.close();
+      });
+      $('confetti-button').addEventListener('click', () => { celebrate(); chime(); if (reducedMotion.matches) toast('Sending a little extra birthday joy!'); });
+
+      // Pointer sparkle. Touchscreens still have the gift and confetti buttons.
+      panel.addEventListener('pointermove', event => {
+        if (reducedMotion.matches || event.pointerType === 'touch') return;
+        const r = panel.getBoundingClientRect(), x = event.clientX - r.left, y = event.clientY - r.top;
+        panel.style.setProperty('--mx', (x / r.width * 100) + '%');
+        panel.style.setProperty('--my', (y / r.height * 100) + '%');
+        $('wish').style.left = x + 'px'; $('wish').style.top = y + 'px'; $('wish').style.bottom = 'auto';
+        $('wish').classList.add('is-in');
+      });
+      panel.addEventListener('pointerleave', () => $('wish').classList.remove('is-in'));
+
+      // Optional synthesized sound: no music file, autoplay, or microphone access.
+      function tone(frequency, start, duration) {
+        const osc = audio.createOscillator(), gain = audio.createGain();
+        osc.type = 'sine'; osc.frequency.value = frequency;
+        gain.gain.setValueAtTime(0, start); gain.gain.linearRampToValueAtTime(.045, start + .02);
+        gain.gain.exponentialRampToValueAtTime(.0001, start + duration);
+        osc.connect(gain); gain.connect(audio.destination); oscillators.add(osc);
+        osc.onended = () => { oscillators.delete(osc); gain.disconnect(); osc.disconnect(); };
+        osc.start(start); osc.stop(start + duration + .03);
+      }
+      function silence() { for (const osc of oscillators) { try { osc.stop(); } catch (_) {} } oscillators.clear(); }
+      function chime() {
+        if (!soundOn || !audio || audio.state !== 'running' || oscillators.size > 10) return;
+        [523.25, 659.25, 783.99, 1046.5].forEach((note, i) => tone(note, audio.currentTime + i * .13, .7));
+      }
+      $('sound-button').addEventListener('click', async () => {
+        if (soundOn) { soundOn = false; silence(); }
+        else {
+          const Audio = window.AudioContext || window.webkitAudioContext;
+          if (!Audio) { toast('Sound is unavailable in this browser.'); return; }
+          try { if (!audio) audio = new Audio(); await audio.resume(); }
+          catch (_) { toast('This browser could not play sound.'); return; }
+          if (audio.state !== 'running') { toast('Sound could not start. Try again.'); return; }
+          soundOn = true;
+          const notes = [[392,.5],[392,.5],[440,1],[392,1],[523.25,1],[493.88,2],[0,.3],[392,.5],[392,.5],[440,1],[392,1],[587.33,1],[523.25,2],[0,.3],[392,.5],[392,.5],[783.99,1],[659.25,1],[523.25,1],[493.88,1],[440,2],[0,.3],[698.46,.5],[698.46,.5],[659.25,1],[523.25,1],[587.33,1],[523.25,2]];
+          let time = audio.currentTime + .05;
+          for (const [note, beat] of notes) { if (note) tone(note, time, beat * .27); time += beat * .3; }
+        }
+        $('sound-button').setAttribute('aria-pressed', String(soundOn));
+        $('sound-button').textContent = soundOn ? '♪ Sound on' : '♪ Sound off';
+      });
+      document.addEventListener('visibilitychange', () => { if (document.hidden) silence(); });
+
+      // Lightweight canvas confetti; honors the system's reduced-motion setting.
+      const canvas = $('confetti'), ctx = canvas.getContext('2d');
+      let particles = [], animation = 0, previousTime = 0;
+      function resize() {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = window.innerWidth * dpr; canvas.height = window.innerHeight * dpr;
+        if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      function celebrate() {
+        if (!ctx || reducedMotion.matches) return;
+        const colors = ['#b7ff69', '#ff8eb6', '#fff5e9', '#ffcf69', '#cd9fff'];
+        for (let i = 0; i < 140; i++) {
+          const angle = Math.random() * Math.PI * 2, speed = 4 + Math.random() * 9;
+          particles.push({ x: innerWidth / 2, y: innerHeight * .45, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 4, life: 180, angle: Math.random() * 6.28, spin: (Math.random() - .5) * .18, size: 4 + Math.random() * 5, color: colors[i % colors.length] });
+        }
+        particles = particles.slice(-350);
+        if (!animation) { previousTime = performance.now(); animation = requestAnimationFrame(drawConfetti); }
+      }
+      function drawConfetti(now) {
+        const dt = Math.min((now - previousTime) / 16.67, 2.5); previousTime = now;
+        ctx.clearRect(0, 0, innerWidth, innerHeight);
+        particles = particles.filter(p => p.life > 0 && p.y < innerHeight + 30);
+        for (const p of particles) {
+          p.vy += .14 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.angle += p.spin * dt; p.life -= dt;
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle); ctx.globalAlpha = Math.min(1, p.life / 30); ctx.fillStyle = p.color;
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * .55); ctx.restore();
+        }
+        if (particles.length && !reducedMotion.matches) animation = requestAnimationFrame(drawConfetti);
+        else { animation = 0; particles = []; ctx.clearRect(0, 0, innerWidth, innerHeight); }
+      }
+      window.addEventListener('resize', resize); resize();
+
+      // Export a self-contained copy with the current name/message embedded.
+      $('download-button').addEventListener('click', () => {
+        if (!readForm()) return;
+        try {
+          const page = document.documentElement.cloneNode(true);
+          // Escaping the less-than sign keeps embedded JSON inside its script element.
+          page.querySelector('#card-data').textContent = JSON.stringify(settings, null, 2).replace(/</g, '\\u003c');
+          page.querySelector('#stage').classList.remove('is-in');
+          page.querySelector('#gift-dialog').removeAttribute('open');
+          page.querySelector('#customize').removeAttribute('open');
+          page.querySelector('#wish').classList.remove('is-in');
+          page.querySelector('#wish').removeAttribute('style');
+          page.querySelector('#pink-panel').removeAttribute('style');
+          page.querySelector('#toast').classList.remove('show'); page.querySelector('#toast').textContent = '';
+          page.querySelector('#sound-button').setAttribute('aria-pressed', 'false'); page.querySelector('#sound-button').textContent = '♪ Sound off';
+          const blob = new Blob(['<!DOCTYPE html>\n' + page.outerHTML], { type: 'text/html;charset=utf-8' });
+          const url = URL.createObjectURL(blob), link = document.createElement('a');
+          const name = settings.name.replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-') || 'Friend';
+          link.href = url; link.download = 'Happy-Birthday-' + name + '.html'; document.body.appendChild(link); link.click(); link.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 30000);
+          toast('Your personalized HTML is ready to send!');
+        } catch (_) { toast('The download could not start. Please try another browser.'); }
+      });
+
+      render(); replay();
+    })();
+  </script>
+</body>
+</html>
